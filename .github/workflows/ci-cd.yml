@@ -1,59 +1,50 @@
 name: Java CI/CD
 
 on:
-
   push:
-
     branches:
       - main
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: java-cicd-demo
+
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
+      - name: Build Application
+        run: mvn clean package
 
-      with:
-        distribution: temurin
-        java-version: 21
-        cache: maven
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Build Application
-      run: mvn clean package
+      - name: Build Docker Image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/java-demo:latest .
 
-    - name: Login DockerHub
-      uses: docker/login-action@v3
+      - name: Push Docker Image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/java-demo:latest
 
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
 
-    - name: Build Docker Image
-
-      run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/java-demo:latest .
-
-    - name: Push Docker Image
-
-      run: |
-        docker push ${{ secrets.DOCKER_USERNAME }}/java-demo:latest
-
-    - name: Configure kubeconfig
-
-      run: |
-        mkdir -p ~/.kube
-        echo "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
-
-    - name: Deploy to Kubernetes
-
-      run: |
-        kubectl apply -f kubernetes/deployment.yaml
-        kubectl apply -f kubernetes/service.yaml
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/service.yaml
